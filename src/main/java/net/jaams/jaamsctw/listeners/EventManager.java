@@ -22,11 +22,12 @@ import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.entity.ItemSpawnEvent;
 import org.bukkit.event.entity.FoodLevelChangeEvent;
 import org.bukkit.event.entity.EntityTargetEvent;
-import org.bukkit.event.entity.EntityDamageEvent.DamageCause;
+import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.block.SignChangeEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.block.BlockFromToEvent;
 import org.bukkit.event.block.BlockDamageEvent;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.Action;
@@ -34,6 +35,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.EventHandler;
+import org.bukkit.entity.TNTPrimed;
 import org.bukkit.entity.Player;
 import org.bukkit.World;
 import org.bukkit.Material;
@@ -392,8 +394,63 @@ public final class EventManager {
 			}
 		}
 
+		@EventHandler(priority = EventPriority.HIGH)
+		public void onBlockFromTo(BlockFromToEvent event) {
+			Material type = event.getBlock().getType();
+			if ((type == Material.STATIONARY_WATER && !plugin.cf.isWaterFlowAllowed()) || (type == Material.STATIONARY_LAVA && !plugin.cf.isLavaFlowAllowed())) {
+				event.setCancelled(true);
+			}
+		}
+
+		@EventHandler(priority = EventPriority.HIGH)
+		public void onEntityExplode(EntityExplodeEvent event) {
+			if (event.getEntity() instanceof TNTPrimed && !plugin.cf.isTntBlockDamageEnabled()) {
+				event.blockList().clear();
+			}
+		}
+
+		@EventHandler(priority = EventPriority.HIGHEST)
+		public void onExplosionDamage(EntityDamageEvent e) {
+			if (e.getCause() == EntityDamageEvent.DamageCause.ENTITY_EXPLOSION && e.getEntity() instanceof Player) {
+				Player player = (Player) e.getEntity();;
+				if (!plugin.cf.isTntPlayerDamageEnabled()) {
+					e.setCancelled(true);
+				}
+			}
+		}
+
+		@EventHandler(priority = EventPriority.HIGHEST)
+		public void onTntExplosionDamage(EntityDamageByEntityEvent e) {
+			if (e.getDamager() instanceof TNTPrimed && e.getEntity() instanceof Player) {
+				Player player = (Player) e.getEntity();
+				if (!plugin.cf.isTntPlayerDamageEnabled()) {
+					e.setCancelled(true);
+				}
+			}
+		}
+
+		@EventHandler(priority = EventPriority.HIGHEST)
+		public void onVoidDamage(EntityDamageEvent e) {
+			if (e.getCause() == EntityDamageEvent.DamageCause.VOID && e.getEntity() instanceof Player) {
+				Player player = (Player) e.getEntity();;
+				if (plugin.cf.isVoidInstaKill()) {
+					player.setHealth(0);
+				}
+			}
+		}
+
+		@EventHandler(priority = EventPriority.HIGHEST)
+		public void onFallDamage(EntityDamageEvent e) {
+			if (e.getCause() == EntityDamageEvent.DamageCause.FALL && e.getEntity() instanceof Player) {
+				Player player = (Player) e.getEntity();
+				if (plugin.cf.isFallDamage()) {
+					e.setCancelled(true);
+				}
+			}
+		}
+
 		@EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
-		public void onBlockPlaceEvent(BlockPlaceEvent e) {
+		public void onBlockPlace(BlockPlaceEvent e) {
 			plugin.tm.cancelSpectator(e);
 			if (!e.isCancelled()) {
 				plugin.gm.events.cancelEditProtectedAreas(e);
@@ -446,18 +503,6 @@ public final class EventManager {
 		@EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
 		public void onEntityDamage(EntityDamageEvent e) {
 			plugin.tm.cancelSpectator(e);
-		}
-
-		@EventHandler(priority = EventPriority.HIGHEST)
-		public void onFallDamage(EntityDamageEvent e) {
-			if (e.getCause() == DamageCause.FALL) {
-				if (e.getEntity() instanceof Player) {
-					Player plr = (Player) e.getEntity();
-					if (plugin.pm.getTeamId(plr) != null) {
-						e.setCancelled(true);
-					}
-				}
-			}
 		}
 
 		@EventHandler(ignoreCancelled = true, priority = EventPriority.HIGHEST)

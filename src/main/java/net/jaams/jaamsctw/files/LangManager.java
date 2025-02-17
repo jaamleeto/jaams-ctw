@@ -58,18 +58,14 @@ public final class LangManager {
 	}
 
 	public void saveDefaultLangFiles() {
-		File defaultLangFile;
-		defaultLangFile = new File(plugin.getDataFolder(), "spanish.yml");
-		if (!defaultLangFile.exists()) {
-			plugin.saveResource(defaultLangFile.getName(), false);
-		}
-		defaultLangFile = new File(plugin.getDataFolder(), "english.yml");
-		if (!defaultLangFile.exists()) {
-			plugin.saveResource(defaultLangFile.getName(), false);
-		}
-		defaultLangFile = new File(plugin.getDataFolder(), "italian.yml");
-		if (!defaultLangFile.exists()) {
-			plugin.saveResource(defaultLangFile.getName(), false);
+		saveLangFile("spanish.yml");
+		saveLangFile("english.yml");
+	}
+
+	private void saveLangFile(String fileName) {
+		File langFile = new File(plugin.getDataFolder(), fileName);
+		if (!langFile.exists()) {
+			plugin.saveResource(fileName, false);
 		}
 	}
 

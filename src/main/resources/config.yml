@@ -32,8 +32,12 @@ ingame:
 message-decorator: ""
 user-fireworks-on-win: true
 keep-teams-on-win: true
-instakill-on-void: false
-fall-damage: true
+instakill-on-void: true
+disable-fall-damage: true
+allow-water-flow: false
+allow-lava-flow: false
+tnt-breaks-blocks: false
+tnt-causes-player-damage: true
 
 vip-armors:
   blue:

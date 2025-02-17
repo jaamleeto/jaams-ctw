@@ -5,6 +5,7 @@ import org.bukkit.scoreboard.Scoreboard;
 import org.bukkit.material.Wool;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.event.player.PlayerPickupItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -24,6 +25,7 @@ import org.bukkit.event.block.BlockDamageEvent;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Arrow;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.Material;
 import org.bukkit.DyeColor;
 import org.bukkit.Color;
@@ -35,6 +37,13 @@ import net.jaams.jaamsctw.JaamsCtwMod;
 import java.util.TreeMap;
 import java.util.List;
 import java.util.ArrayList;
+
+import com.comphenix.protocol.events.PacketEvent;
+import com.comphenix.protocol.events.PacketAdapter;
+import com.comphenix.protocol.events.ListenerPriority;
+import com.comphenix.protocol.ProtocolManager;
+import com.comphenix.protocol.ProtocolLibrary;
+import com.comphenix.protocol.PacketType;
 
 public class TeamManager {
 	private final JaamsCtwMod plugin;
@@ -74,6 +83,7 @@ public class TeamManager {
 
 	public TeamManager(JaamsCtwMod plugin) {
 		this.plugin = plugin;
+		registerSpectatorInventoryClickListener();
 		scoreboard = Bukkit.getScoreboardManager().getNewScoreboard();
 		teams = new TreeMap<>();
 		TeamInfo teamInfo;
@@ -143,40 +153,79 @@ public class TeamManager {
 	}
 
 	public void cancelSpectator(InventoryClickEvent e) {
-		if (e.getWhoClicked() instanceof Player == false) {
+		if (!(e.getWhoClicked() instanceof Player)) {
 			return;
 		}
 		Player player = (Player) e.getWhoClicked();
 		if (plugin.pm.isSpectator(player)) {
-			e.setCancelled(true);
-			if (e.getCurrentItem() != null) {
-				if (e.getCurrentItem().equals(plugin.pm.getMenuItem()) && !joinMenuInventory.getViewers().contains(player)) {
-					player.openInventory(joinMenuInventory);
-				} else {
-					switch (e.getCurrentItem().getType()) {
-						case NETHER_STAR :
-							player.closeInventory();
-							plugin.gm.movePlayerTo(player, null);
-							break;
-						case EYE_OF_ENDER :
-							player.closeInventory();
-							break;
-						case WOOL :
-							player.closeInventory();
-							Wool wool = (Wool) e.getCurrentItem().getData();
-							switch (wool.getColor()) {
-								case RED :
-									plugin.gm.joinInTeam(player, TeamId.RED);
-									break;
-								case BLUE :
-									plugin.gm.joinInTeam(player, TeamId.BLUE);
-									break;
-							}
-							break;
+			e.setCancelled(true); // Bloquear la interacción normal
+			if (e.getCurrentItem() == null)
+				return;
+			switch (e.getCurrentItem().getType()) {
+				case NETHER_STAR :
+					player.closeInventory();
+					plugin.gm.movePlayerTo(player, null);
+					break;
+				case EYE_OF_ENDER :
+					player.closeInventory();
+					break;
+				case WOOL :
+					player.closeInventory();
+					Wool wool = (Wool) e.getCurrentItem().getData();
+					if (wool.getColor() == DyeColor.RED) {
+						plugin.gm.joinInTeam(player, TeamId.RED);
+					} else if (wool.getColor() == DyeColor.BLUE) {
+						plugin.gm.joinInTeam(player, TeamId.BLUE);
 					}
-				}
+					break;
 			}
 		}
+	}
+
+	public void registerSpectatorInventoryClickListener() {
+		ProtocolManager protocolManager = ProtocolLibrary.getProtocolManager();
+		final JaamsCtwMod mainPlugin = this.plugin; // Asegurar que plugin no sea null
+		protocolManager.addPacketListener(new PacketAdapter(mainPlugin, ListenerPriority.HIGHEST, PacketType.Play.Client.WINDOW_CLICK) {
+			@Override
+			public void onPacketReceiving(PacketEvent event) {
+				Player player = event.getPlayer();
+				if (mainPlugin.pm == null || mainPlugin.gm == null) {
+					Bukkit.getLogger().warning("pm o gm son null en registerSpectatorInventoryClickListener");
+					return;
+				}
+				// Verificar si el jugador está en modo espectador
+				if (mainPlugin.pm.isSpectator(player)) {
+					event.setCancelled(true); // Bloquear la interacción normal
+					int slot = event.getPacket().getIntegers().read(1);
+					Inventory inventory = player.getOpenInventory().getTopInventory();
+					if (inventory == null)
+						return;
+					ItemStack item = inventory.getItem(slot);
+					if (item == null || item.getType() == Material.AIR)
+						return;
+					Bukkit.getScheduler().runTask(mainPlugin, () -> {
+						switch (item.getType()) {
+							case NETHER_STAR :
+								player.closeInventory();
+								mainPlugin.gm.movePlayerTo(player, null);
+								break;
+							case EYE_OF_ENDER :
+								player.closeInventory();
+								break;
+							case WOOL :
+								player.closeInventory();
+								Wool wool = (Wool) item.getData();
+								if (wool.getColor() == DyeColor.RED) {
+									mainPlugin.gm.joinInTeam(player, TeamId.RED);
+								} else if (wool.getColor() == DyeColor.BLUE) {
+									mainPlugin.gm.joinInTeam(player, TeamId.BLUE);
+								}
+								break;
+						}
+					});
+				}
+			}
+		});
 	}
 
 	public void cancelSpectator(PlayerInteractEvent e) {
@@ -258,34 +307,30 @@ public class TeamManager {
 	}
 
 	private Inventory getTeamInventoryMenu() {
-		Inventory teamMenu;
-		teamMenu = Bukkit.createInventory(null, 9, plugin.lm.getText("pick-your-team"));
+		Inventory teamMenu = Bukkit.createInventory(null, 9, plugin.lm.getText("pick-your-team"));
 		List<String> ayuda = new ArrayList<>();
-		ItemStack option = new ItemStack(Material.EMERALD);
+		// 🟦 Lana Azul (Unirse al equipo azul) - Slot 2
+		Wool wool = new Wool(DyeColor.BLUE);
+		ItemStack option = wool.toItemStack();
 		ItemMeta im = option.getItemMeta();
-		im.setDisplayName(plugin.lm.getText("view-tutorial"));
-		ayuda.add(plugin.lm.getText("not-available-yet"));
+		im.setDisplayName(plugin.lm.getText("join-blue"));
+		ayuda.add(plugin.lm.getText("blue-join-help"));
 		im.setLore(ayuda);
 		option.setItemMeta(im);
-		teamMenu.addItem(new ItemStack[]{option});
+		teamMenu.setItem(2, option);
 		ayuda.clear();
+		// ⭐ Auto-Join (Unirse automáticamente) - Slot 4 (con brillo de encantamiento)
 		option = new ItemStack(Material.NETHER_STAR);
 		im = option.getItemMeta();
 		im.setDisplayName(plugin.lm.getText("auto-join"));
 		ayuda.add(plugin.lm.getText("auto-join-help"));
 		im.setLore(ayuda);
+		im.addEnchant(Enchantment.DURABILITY, 1, true); // Añadir brillo de encantamiento
+		im.addItemFlags(ItemFlag.HIDE_ENCHANTS); // Ocultar encantamiento en la descripción
 		option.setItemMeta(im);
-		teamMenu.addItem(new ItemStack[]{option});
+		teamMenu.setItem(4, option);
 		ayuda.clear();
-		Wool wool = new Wool(DyeColor.BLUE);
-		option = wool.toItemStack();
-		im = option.getItemMeta();
-		im.setDisplayName(plugin.lm.getText("join-blue"));
-		ayuda.add(plugin.lm.getText("blue-join-help"));
-		im.setLore(ayuda);
-		option.setItemMeta(im);
-		teamMenu.addItem(new ItemStack[]{option});
-		ayuda.clear();
+		// 🔴 Lana Roja (Unirse al equipo rojo) - Slot 6
 		wool = new Wool(DyeColor.RED);
 		option = wool.toItemStack();
 		im = option.getItemMeta();
@@ -293,15 +338,8 @@ public class TeamManager {
 		ayuda.add(plugin.lm.getText("red-join-help"));
 		im.setLore(ayuda);
 		option.setItemMeta(im);
-		teamMenu.addItem(new ItemStack[]{option});
+		teamMenu.setItem(6, option);
 		ayuda.clear();
-		option = new ItemStack(Material.EYE_OF_ENDER);
-		im = option.getItemMeta();
-		im.setDisplayName(plugin.lm.getText("close"));
-		ayuda.add(plugin.lm.getText("close-menu"));
-		im.setLore(ayuda);
-		option.setItemMeta(im);
-		teamMenu.setItem(8, option);
 		return teamMenu;
 	}
 

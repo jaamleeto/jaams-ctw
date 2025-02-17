@@ -411,11 +411,8 @@ public class PlayerManager {
 	}
 
 	private void setSpectator(Player player) {
-		player.setHealth(20.0);
-		player.setFoodLevel(20);
 		this.plugin.pm.clearInventory(player);
-		player.setGameMode(GameMode.ADVENTURE);
-		player.setAllowFlight(true);
+		player.setGameMode(GameMode.SPECTATOR);
 		player.getInventory().addItem(new ItemStack[]{this.helpBook});
 		this.updatePlayerList(player);
 	}

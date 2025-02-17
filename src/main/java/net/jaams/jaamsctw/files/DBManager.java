@@ -9,6 +9,8 @@ import java.sql.SQLException;
 import java.sql.ResultSet;
 import java.sql.DriverManager;
 import java.sql.Connection;
+import java.util.logging.Level;
+import java.sql.Statement;
 
 public class DBManager {
 	private final JaamsCtwMod plugin;
@@ -41,12 +43,9 @@ public class DBManager {
 	}
 
 	private boolean executeUpdate(String query) {
-		Statement statement;
 		boolean results = false;
-		try {
-			statement = connection.createStatement();
+		try (Statement statement = connection.createStatement()) {
 			statement.executeUpdate(query);
-			statement.close();
 			results = true;
 		} catch (SQLException ex) {
 			plugin.getLogger().severe(ex.getMessage());
